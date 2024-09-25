@@ -2,5 +2,9 @@ streamlit==1.21.0
 PyMuPDF==1.19.6
 pinecone-client==2.0.0  # Ensure this is the version you need
 langchain-huggingface  # Remove version specifier for compatibility
+<<<<<<< HEAD
+=======
+pinecone-text==0.0.1
+>>>>>>> 5b8a3392d2e228f577b195f16ec832e5e0bdedc1
 nltk==3.7
 
