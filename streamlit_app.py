@@ -1,56 +1,101 @@
 import streamlit as st
-from openai import OpenAI
+import fitz  # PyMuPDF
+from pinecone import Pinecone, ServerlessSpec
+from langchain_huggingface import HuggingFaceEmbeddings
+from pinecone_text.sparse import BM25Encoder
+from langchain_community.retrievers import PineconeHybridSearchRetriever
+import nltk
+nltk.download('punkt')
+nltk.download('punkt_tab')  # Add this line
 
-# Show title and description.
-st.title("💬 Chatbot")
-st.write(
-    "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
-    "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-    "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
-)
 
-# Ask user for their OpenAI API key via `st.text_input`.
-# Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-# via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-openai_api_key = st.text_input("OpenAI API Key", type="password")
-if not openai_api_key:
-    st.info("Please add your OpenAI API key to continue.", icon="🗝️")
-else:
+# Initialize Pinecone
+api_key = st.secrets["PINECONE"]["PINECONE_API_KEY"]  # Store Pinecone API key in secrets.toml
+pc = Pinecone(api_key=api_key)  # Create an instance of Pinecone
 
-    # Create an OpenAI client.
-    client = OpenAI(api_key=openai_api_key)
+index_name = "infogenie"
 
-    # Create a session state variable to store the chat messages. This ensures that the
-    # messages persist across reruns.
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
-    # Display the existing chat messages via `st.chat_message`.
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
-    # Create a chat input field to allow the user to enter a message. This will display
-    # automatically at the bottom of the page.
-    if prompt := st.chat_input("What is up?"):
-
-        # Store and display the current prompt.
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
-
-        # Generate a response using the OpenAI API.
-        stream = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": m["role"], "content": m["content"]}
-                for m in st.session_state.messages
-            ],
-            stream=True,
+# Create or load index
+try:
+    if index_name not in pc.list_indexes().names():  # Use the Pinecone instance to list indexes
+        pc.create_index(
+            name=index_name,
+            dimension=384, 
+            metric="dotproduct",
+            spec=ServerlessSpec(cloud="aws", region="us-east-1")
         )
+except Exception as e:
+    st.error(f"Error creating index: {str(e)}")
 
-        # Stream the response to the chat using `st.write_stream`, then store it in 
-        # session state.
-        with st.chat_message("assistant"):
-            response = st.write_stream(stream)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+index = pc.Index(index_name)  # Use the Pinecone instance to get the index
+
+# Generate embeddings and BM25 encoder
+embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-V2")
+bm25_encoder = BM25Encoder().default()
+
+# Function to extract text from a PDF file
+def extract_text_from_pdf(pdf_file):
+    doc = fitz.open(stream=pdf_file.read(), filetype="pdf")  # Read from the uploaded file
+    text = ""
+    for page in doc:
+        text += page.get_text("text")
+    return text
+
+# Streamlit UI
+st.title("📚 RAG-Enhanced PDF Retrieval System ✨")
+
+# Display an image
+st.image("/workspaces/RAG-Enhanced-PDF-Retrieval-System/data/robot.jpg", caption="Welcome to the RAG System!", use_column_width=True)
+
+uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
+
+if uploaded_file is not None:
+    # Extract text from the uploaded PDF
+    extracted_text = extract_text_from_pdf(uploaded_file)
+    
+    # Split text into sentences for indexing
+    sentences = extracted_text.split(". ")  # Simple sentence splitting
+
+    # Filter out empty sentences
+    sentences = [s.strip() for s in sentences if s.strip()]  # Ensure sentences are not empty or whitespace
+
+    # Check if there are valid sentences to encode
+    if sentences:
+        # Fit BM25 encoder with the extracted sentences
+        bm25_encoder.fit(sentences)
+
+        # Initialize the retriever
+        retriever = PineconeHybridSearchRetriever(embeddings=embeddings, sparse_encoder=bm25_encoder, index=index)
+
+        # Add sentences to the Pinecone index
+        try:
+            retriever.add_texts(sentences)  # Attempt to add texts to Pinecone
+            st.success("PDF text successfully indexed. You can now search within the PDF.")
+        except Exception as e:
+            # Suppress the error message
+            print(f"Error adding texts to Pinecone: {str(e)}")  # Log the error to the console instead
+    else:
+        st.warning("No valid sentences to index.")
+
+    # Provide a query interface for the user
+    query = st.text_input("Ask a question about the content in the PDF:", "")
+
+    if st.button("Search"):
+        if query:
+            results = retriever.invoke(query)
+            if results:
+                st.write(f"Results for: **{query}**")
+            
+                # Create a list to hold the page contents
+                contents = []
+                for result in results:
+                    contents.append(result.page_content)  # Correctly accessing page_content
+
+                # Join all the contents into a single string
+                combined_content = " ".join(contents)  # Combine into a single paragraph
+                st.write(combined_content)  # Display the combined content
+            
+            else:
+                st.warning("No results found!")
+        else:
+            st.warning("Please enter a query to search!")

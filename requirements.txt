@@ -1,2 +1,6 @@
-streamlit
-openai
+streamlit==1.21.0
+PyMuPDF==1.19.6
+pinecone-client==2.0.0
+langchain-huggingface==0.0.1
+pinecone-text==0.0.1
+nltk==3.7
