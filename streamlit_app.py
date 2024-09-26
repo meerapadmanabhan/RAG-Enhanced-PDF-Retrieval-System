@@ -5,7 +5,12 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from pinecone_text.sparse import BM25Encoder
 from langchain_community.retrievers import PineconeHybridSearchRetriever
 import nltk
+import logging
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+
+# Download necessary NLTK data
 nltk.download('punkt')
 nltk.download('punkt_tab')
 
@@ -29,17 +34,16 @@ if pc:
 
     # Create or load index
     try:
-        if index_name not in pc.list_indexes().names():  # Use the Pinecone instance to list indexes
+        if index_name not in pc.list_indexes().names():  # Check if the index exists
             pc.create_index(
                 name=index_name,
                 dimension=384, 
                 metric="dotproduct",
                 spec=ServerlessSpec(cloud="aws", region="us-east-1")
             )
+        index = pc.Index(index_name)  # Use the Pinecone instance to get the index
     except Exception as e:
-        st.error(f"Error creating index: {str(e)}")
-
-    index = pc.Index(index_name)  # Use the Pinecone instance to get the index
+        st.error(f"Error creating/loading index: {str(e)}")
 
     # Generate embeddings and BM25 encoder
     embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-V2")
@@ -47,11 +51,15 @@ if pc:
 
     # Function to extract text from a PDF file
     def extract_text_from_pdf(pdf_file):
-        doc = fitz.open(stream=pdf_file.read(), filetype="pdf")  # Read from the uploaded file
-        text = ""
-        for page in doc:
-            text += page.get_text("text")
-        return text
+        try:
+            doc = fitz.open(stream=pdf_file.read(), filetype="pdf")  # Read from the uploaded file
+            text = ""
+            for page in doc:
+                text += page.get_text("text")
+            return text
+        except Exception as e:
+            st.error(f"Error reading PDF file: {str(e)}")
+            return ""
 
     # Streamlit UI
     st.title("📚 RAG-Enhanced PDF Retrieval System ✨")
@@ -76,16 +84,13 @@ if pc:
             # Fit BM25 encoder with the extracted sentences
             bm25_encoder.fit(sentences)
 
-            # Initialize the retriever
-            retriever = PineconeHybridSearchRetriever(embeddings=embeddings, sparse_encoder=bm25_encoder, index=index)
-
-            # Add sentences to the Pinecone index
+            # Initialize the retriever only after adding texts to the Pinecone index
             try:
-                retriever.add_texts(sentences)  # Attempt to add texts to Pinecone
+                retriever = PineconeHybridSearchRetriever(embeddings=embeddings, sparse_encoder=bm25_encoder, index=index)
+                retriever.add_texts(sentences)  # Add texts to Pinecone
                 st.success("PDF text successfully indexed. You can now search within the PDF.")
             except Exception as e:
-                # Suppress the error message
-                print(f"Error adding texts to Pinecone: {str(e)}")  # Log the error to the console instead
+                st.error(f"Error adding texts to Pinecone: {str(e)}")  # Display error if occurs
         else:
             st.warning("No valid sentences to index.")
 
@@ -111,3 +116,5 @@ if pc:
                     st.warning("No results found!")
             else:
                 st.warning("Please enter a query to search!")
+else:
+    st.error("Pinecone not initialized.")
