@@ -11,10 +11,23 @@ from collections.abc import Iterable  # Importing Iterable here
 nltk.download('punkt')
 nltk.download('punkt_tab')  # Add this line
 
+# Debugging: Print available secrets
+st.write(st.secrets)
 
 # Initialize Pinecone
-api_key = st.secrets["PINECONE"]["PINECONE_API_KEY"]  # Store Pinecone API key in secrets.toml
-pc = Pinecone(api_key=api_key)  # Create an instance of Pinecone
+try:
+    api_key = st.secrets["PINECONE"]["PINECONE_API_KEY"]
+except KeyError as e:
+    st.error(f"KeyError: {str(e)}. Check your secrets.toml file.")
+    api_key = None  # Set api_key to None to prevent further errors
+
+if api_key:
+    pc = Pinecone(api_key=api_key)  # Create an instance of Pinecone
+
+
+# Initialize Pinecone
+#api_key = st.secrets["PINECONE"]["PINECONE_API_KEY"]  # Store Pinecone API key in secrets.toml
+#pc = Pinecone(api_key=api_key)  # Create an instance of Pinecone
 
 index_name = "infogenie"
 
