@@ -5,6 +5,9 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from pinecone_text.sparse import BM25Encoder
 from langchain_community.retrievers import PineconeHybridSearchRetriever
 import nltk
+from collections.abc import Iterable  # Importing Iterable here
+
+
 nltk.download('punkt')
 nltk.download('punkt_tab')  # Add this line
 
