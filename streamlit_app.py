@@ -11,11 +11,11 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 # Download necessary NLTK data
-nltk.download('punkt')
-nltk.download('punkt_tab')
+nltk.download('punkt', quiet=True)
 
 # Debugging: Print available secrets (for development purposes)
-st.write(st.secrets)
+# Remove or comment this line before deployment to hide sensitive information
+# st.write(st.secrets)
 
 # Initialize Pinecone
 try:
@@ -48,7 +48,7 @@ if pc:
 
     # Generate embeddings and BM25 encoder
     embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-V2")
-    bm25_encoder = BM25Encoder().default()
+    bm25_encoder = BM25Encoder()
 
     # Function to extract text from a PDF file
     def extract_text_from_pdf(pdf_file):
@@ -88,14 +88,11 @@ if pc:
             # Initialize the retriever only after adding texts to the Pinecone index
             try:
                 retriever = PineconeHybridSearchRetriever(embeddings=embeddings, sparse_encoder=bm25_encoder, index=index)
-                
-                # Attempt to add texts to Pinecone, ensuring they are valid
-                if any(len(sentence.split()) > 0 for sentence in sentences):  # Check if any sentence has valid content
-                    retriever.add_texts(sentences)  # Add texts to Pinecone
-                    st.success("PDF text successfully indexed. You can now search within the PDF.")
-                else:
-                    st.warning("No valid sentences to add to Pinecone.")
-                    
+
+                # Attempt to add texts to Pinecone
+                retriever.add_texts(sentences)  # Add texts to Pinecone
+                st.success("PDF text successfully indexed. You can now search within the PDF.")
+
             except Exception as e:
                 logging.error(f"Error adding texts to Pinecone: {str(e)}")  # Log the error for debugging
                 st.warning("An error occurred while indexing the PDF text. Please check the content and try again.")
@@ -112,9 +109,7 @@ if pc:
                     st.write(f"Results for: **{query}**")
 
                     # Create a list to hold the page contents
-                    contents = []
-                    for result in results:
-                        contents.append(result.page_content)  # Correctly accessing page_content
+                    contents = [result.page_content for result in results]  # Correctly accessing page_content
 
                     # Join all the contents into a single string
                     combined_content = " ".join(contents)  # Combine into a single paragraph
