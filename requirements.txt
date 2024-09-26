@@ -5,5 +5,6 @@ langchain-huggingface
 nltk==3.7
 numpy==1.24.3
 pandas==1.5.3
-pinecone-text  # Add this line
+pinecone-text 
+langchain-community 
 
