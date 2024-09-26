@@ -70,8 +70,9 @@ if pc:
         # Extract text from the uploaded PDF
         extracted_text = extract_text_from_pdf(uploaded_file)
         
+        # Instead of displaying the extracted text, show a success message
         if extracted_text:
-            st.write("Extracted Text:", extracted_text)  # Debug line to show extracted text
+            st.success("Text extracted successfully from the PDF!")  # Notify the user of successful extraction
         else:
             logging.warning("No text extracted from the PDF.")
             st.warning("No text extracted from the PDF.")
