@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 nltk.download('punkt')
 nltk.download('punkt_tab')
 
-# Debugging: Print available secrets
+# Debugging: Print available secrets (for development purposes)
 st.write(st.secrets)
 
 # Initialize Pinecone
@@ -44,6 +44,7 @@ if pc:
         index = pc.Index(index_name)  # Use the Pinecone instance to get the index
     except Exception as e:
         st.error(f"Error creating/loading index: {str(e)}")
+        index = None  # Set index to None to prevent further errors
 
     # Generate embeddings and BM25 encoder
     embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-V2")
@@ -87,10 +88,17 @@ if pc:
             # Initialize the retriever only after adding texts to the Pinecone index
             try:
                 retriever = PineconeHybridSearchRetriever(embeddings=embeddings, sparse_encoder=bm25_encoder, index=index)
-                retriever.add_texts(sentences)  # Add texts to Pinecone
-                st.success("PDF text successfully indexed. You can now search within the PDF.")
+                
+                # Attempt to add texts to Pinecone, ensuring they are valid
+                if any(len(sentence.split()) > 0 for sentence in sentences):  # Check if any sentence has valid content
+                    retriever.add_texts(sentences)  # Add texts to Pinecone
+                    st.success("PDF text successfully indexed. You can now search within the PDF.")
+                else:
+                    st.warning("No valid sentences to add to Pinecone.")
+                    
             except Exception as e:
-                st.error(f"Error adding texts to Pinecone: {str(e)}")  # Display error if occurs
+                logging.error(f"Error adding texts to Pinecone: {str(e)}")  # Log the error for debugging
+                st.warning("An error occurred while indexing the PDF text. Please check the content and try again.")
         else:
             st.warning("No valid sentences to index.")
 
