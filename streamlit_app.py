@@ -65,7 +65,7 @@ if pc:
     st.title("📚 RAG-Enhanced PDF Retrieval System ✨")
 
     # Display an image
-    st.image("/workspaces/RAG-Enhanced-PDF-Retrieval-System/data/robot.jpg", caption="Welcome to the RAG System!", use_column_width=True)
+    st.image("data/robot.jpg", caption="Welcome to the RAG System!", use_column_width=True)
 
     uploaded_file = st.file_uploader("Upload a PDF file", type="pdf")
 
